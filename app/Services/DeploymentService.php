@@ -98,9 +98,6 @@ class DeploymentService
         //move the config to nginx configs
         shell_exec("mv {$file} /etc/nginx/sites-available/{$token}.conf");
         shell_exec("ln -s /etc/nginx/sites-available/{$token}.conf /etc/nginx/sites-enabled/");
-
-        // shell_exec("mv {$file} /home/richard/Tutorials/Jenkins/deployments/{$token}.conf");
-        // shell_exec("ln -s /home/richard/Tutorials/Jenkins/deployments/{$token}.conf /home/richard/Tutorials/Jenkins/deployments/so_low.conf");
     }
 
     private function replaceLineInFile(string $original, string $replacement, $file = "docker-compose-test.yml")
