@@ -18,9 +18,11 @@ return new class extends Migration
             $table->string('branch');
             $table->string('commit')->unique();
             $table->string('path');
+            $table->string('url')->comment('Url Token of the App');
             $table->string('stored_path')->nullable();
             $table->unsignedBigInteger('port')->nullable();
             $table->unsignedBigInteger('ssl_port')->nullable();
+            $table->string('token')->unique();
             $table->timestamps();
         });
     }

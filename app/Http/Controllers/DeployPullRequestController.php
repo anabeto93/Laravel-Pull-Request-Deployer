@@ -24,6 +24,11 @@ class DeployPullRequestController extends Controller
     {
         $result = $this->service->deploy($request->validated());
 
+        if ($request->query('cli')) {
+
+            return response()->json($result->data['token'] ?? 'ERROR', $result->error_code);
+        }
+
         return response()->json($result->toArray(), $result->error_code);
     }
 }
