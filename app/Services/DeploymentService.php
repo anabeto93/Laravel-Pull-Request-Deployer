@@ -24,7 +24,7 @@ class DeploymentService
         $sslPort += 1;
 
         // first generate a unique url token
-        $token = generate_unique_url();
+        $token = strtolower(generate_unique_url());
         $url = $token . "." . config('deployment.url');
 
         // create the app storage path
@@ -40,7 +40,7 @@ class DeploymentService
         $this->modifyDockerComposeContents($token, $storedPath, $port, $sslPort);
 
         // create nginx config for this deployment
-        $this->createNginxConfig($token, $storedPath, $url);
+        $this->createNginxConfig($token, $storedPath, $url, $port);
 
         $request = PullRequest::create([
             'branch' => $properties['branch'],
@@ -63,7 +63,7 @@ class DeploymentService
         $container = "test-laravel" . "-{$token}";
         $server_container = "test-webserver" . "-{$token}";
 
-        $file = "{$storedPath}/docker-compose-test.yml";
+        $file = "{$storedPath}/docker-compose.yml";
 
         // replace the network name
         $this->replaceLineInFile("default_network", $network, $file);
@@ -79,7 +79,7 @@ class DeploymentService
         $this->replaceLineInFile("445:443", "{$sslPort}:443", $file);
     }
 
-    protected function createNginxConfig(string $token, string $storedPath, string $url): void
+    protected function createNginxConfig(string $token, string $storedPath, string $url, $port): void
     {
         $configFile = storage_path('configs') . "/nginx.conf";
         $configFile = str_replace("//", "/", $configFile);
@@ -95,12 +95,17 @@ class DeploymentService
         $this->replaceLineInFile("test.homeserver.com www.test.homeserver.com", "{$url} www.{$url}", $file);
         $this->replaceLineInFile("root /var/www/html/api/public;", "root {$rootDir};", $file);
 
+        // replace the default upstream
+        $this->replaceLineInFile("upstream app", "upstream {$token}");
+        $this->replaceLineInFile("server http://localhost:8000;", "server http://localhost:{$port};");
+
         //move the config to nginx configs
-        shell_exec("mv {$file} /etc/nginx/sites-available/{$token}.conf");
-        shell_exec("ln -s /etc/nginx/sites-available/{$token}.conf /etc/nginx/sites-enabled/");
+        shell_exec("sudo mv {$file} /etc/nginx/sites-available/{$token}.conf");
+        shell_exec("sudo ln -s /etc/nginx/sites-available/{$token}.conf /etc/nginx/sites-enabled/");
+        shell_exec("sudo service nginx reload");
     }
 
-    private function replaceLineInFile(string $original, string $replacement, $file = "docker-compose-test.yml")
+    private function replaceLineInFile(string $original, string $replacement, $file = "docker-compose.yml")
     {
         $temp = "{$file}.tmp";
 
