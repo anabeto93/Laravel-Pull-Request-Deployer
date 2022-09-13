@@ -40,7 +40,13 @@ class DeploymentService
         $this->modifyDockerComposeContents($token, $storedPath, $port, $sslPort);
 
         // create nginx config for this deployment
-        $this->createNginxConfig($token, $storedPath, $url, $port);
+        $portVersion = config('nginx.ported_version', false);
+
+        if ($portVersion) {
+            $this->createNginxPortsConfig($token, $storedPath, $url, $port);
+        } else {
+            $this->createNginxConfig($token, $storedPath, $url, $port);
+        }
 
         $request = PullRequest::create([
             'branch' => $properties['branch'],
@@ -96,8 +102,33 @@ class DeploymentService
         $this->replaceLineInFile("root /var/www/html/api/public;", "root {$rootDir};", $file);
 
         // replace the default upstream
-        $this->replaceLineInFile("upstream app", "upstream {$token}");
-        $this->replaceLineInFile("server http://localhost:8000;", "server http://localhost:{$port};");
+        $this->replaceLineInFile("upstream app", "upstream {$token}", $file);
+        $this->replaceLineInFile("server 127.0.0.1:8000;", "server 127.0.0.1:{$port};", $file);
+        $this->replaceLineInFile("proxy_pass http://app;", "proxy_pass http://{$token}/;", $file);
+
+        //move the config to nginx configs
+        shell_exec("sudo mv {$file} /etc/nginx/sites-available/{$token}.conf");
+        shell_exec("sudo ln -s /etc/nginx/sites-available/{$token}.conf /etc/nginx/sites-enabled/");
+        shell_exec("sudo service nginx reload");
+    }
+
+    protected function createNginxPortsConfig(string $token, string $storedPath, string $url, $port): void
+    {
+        $configFile = storage_path('configs') . "/nginx-port.conf";
+        $configFile = str_replace("//", "/", $configFile);
+
+        // create a copy of it
+        $file = str_replace("nginx-port.conf", "nginx-port2.conf", $configFile);
+
+        shell_exec("cp {$configFile} {$file}"); // yh I know, leave it
+
+        $rootDir = $storedPath . "/public";
+
+        // have to replace only a few things here
+        $this->replaceLineInFile("listen 80;", "listen {$port};", $file);
+        $this->replaceLineInFile("upstream app", "upstream {$token}", $file);
+        $this->replaceLineInFile("server 127.0.0.1:8000;", "server 127.0.0.1:{$port};", $file);
+        $this->replaceLineInFile("proxy_pass http://app;", "proxy_pass http://{$token}/;", $file);
 
         //move the config to nginx configs
         shell_exec("sudo mv {$file} /etc/nginx/sites-available/{$token}.conf");
